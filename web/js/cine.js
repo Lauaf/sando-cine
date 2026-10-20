@@ -18,6 +18,7 @@ const api = async (ruta, cuerpo) => {
     ? await fetch(ruta, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) })
     : await fetch(ruta);
   const d = await r.json();
+  if (r.status === 404 && d.error === 'ruta desconocida') throw new Error('El servidor quedó con una versión vieja: cerrá el juego y abrilo de nuevo con iniciar.pyw.');
   if (!r.ok) throw new Error(d.error || 'error');
   return d;
 };
