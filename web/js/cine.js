@@ -443,6 +443,9 @@ function funcion(c, ctx, id, desde = null) {
     if (v.video) {
       const hueco = el('div');
       s.pantalla.append(hueco);
+      // sin los subtítulos de YouTube: se leen los del cine (y la traducción va tapada); el botón CC los vuelve a prender
+      let subsYTApagados = false;
+      const sinSubsYT = () => { try { jugador.unloadModule('captions'); jugador.unloadModule('cc'); } catch { /* */ } };
       try {
         const YT = await cargarYT();
         if (!vivo) return;
@@ -450,7 +453,12 @@ function funcion(c, ctx, id, desde = null) {
           videoId: v.video, width: '100%', height: '100%',
           playerVars: { rel: 0, playsinline: 1, modestbranding: 1, cc_load_policy: 0, iv_load_policy: 3, origin: location.origin, start: Math.floor(desde ?? v.lineas[Math.max(0, v.visto || 0)]?.a ?? 0) },
           events: {
-            onReady: () => { sondeo = setInterval(seguir, 100); if (desde != null) { jugador.playVideo(); op.autopausa = true; pintarBotones(); } },
+            onReady: () => {
+              sinSubsYT();
+              sondeo = setInterval(seguir, 100);
+              if (desde != null) { jugador.playVideo(); op.autopausa = true; pintarBotones(); }
+            },
+            onApiChange: () => { if (!subsYTApagados) { subsYTApagados = true; sinSubsYT(); } }, // se cargan al empezar a reproducir
           },
         });
       } catch (e) {
