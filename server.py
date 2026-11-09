@@ -1,10 +1,9 @@
-"""三道 Sandō — servidor local del juego.
+"""映画館 Cine (Sandō) — servidor local de la app.
 
 Sirve la web (carpeta web/), guarda la partida en datos/partida.json y hace de
 puente hacia la IA local: primero Qwen (EXL3, :8888), si no Ollama (:11434).
-Solo stdlib. Uso:  python server.py [--puerto 8770] [--no-abrir]
+Solo stdlib. Uso:  python server.py [--puerto 8772] [--no-abrir]
 """
-import base64
 import difflib
 import json
 import mimetypes
@@ -26,7 +25,7 @@ RAIZ = Path(__file__).resolve().parent
 WEB = RAIZ / 'web'
 DATOS = RAIZ / 'datos'
 PARTIDA = DATOS / 'partida.json'
-PUERTO = 8770
+PUERTO = 8772
 
 BACKENDS = [
     {'nombre': 'Qwen local (EXL3)', 'base': 'http://127.0.0.1:8888/v1',
@@ -44,12 +43,8 @@ def version_codigo():
 VERSION = version_codigo()
 _cache_modelos = {}  # base -> (instante, id_modelo | None)
 _lock_partida = threading.Lock()
-_locks_partitura = {}  # clave -> Lock (que dos pedidos iguales no generen la misma partitura a la vez)
 VENV_PY = RAIZ / 'venv' / 'Scripts' / 'python.exe'
-IMPORTAR = RAIZ / 'herramientas' / 'importar.py'
 SUBTITULOS = RAIZ / 'herramientas' / 'subtitulos.py'
-EXT_OK = {'.mid', '.midi', '.musicxml', '.xml', '.mxl', '.pdf', '.png', '.jpg', '.jpeg', '.webp',
-          '.mp3', '.wav', '.m4a', '.ogg', '.flac', '.webm', '.opus', '.aac'}
 
 
 def carpeta(nombre):
@@ -61,31 +56,6 @@ def carpeta(nombre):
 def id_valido(x):
     return isinstance(x, str) and re.fullmatch(r'[0-9a-f]{12}', x) is not None
 
-
-def importar_en_fondo(job, url=None, archivo=None, titulo='', nombre=''):
-    """Corre herramientas/importar.py en el venv y guarda la canción resultante."""
-    prog = carpeta('trabajos') / f'{job}.json'
-    salida = carpeta('trabajos') / f'{job}.salida.json'
-    cmd = [str(VENV_PY), '-I', str(IMPORTAR), '--salida', str(salida), '--progreso', str(prog), '--titulo', titulo or '']
-    cmd += ['--url', url] if url else ['--archivo', str(archivo), '--nombre', Path(nombre).stem]
-    try:
-        subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0), timeout=3600)
-    except Exception as e:
-        prog.write_text(json.dumps({'estado': 'error', 'pct': 100, 'mensaje': str(e)}, ensure_ascii=False), encoding='utf-8')
-    if salida.exists():
-        datos = json.loads(salida.read_text(encoding='utf-8'))
-        datos.update({'id': job, 'creado': time.strftime('%Y-%m-%d'), 'origen': url or (archivo.name if archivo else '')})
-        (carpeta('canciones') / f'{job}.json').write_text(json.dumps(datos, ensure_ascii=False), encoding='utf-8')
-        salida.unlink()
-        estado = json.loads(prog.read_text(encoding='utf-8'))
-        estado['cancion'] = job
-        prog.write_text(json.dumps(estado, ensure_ascii=False), encoding='utf-8')
-
-
-def resumen_cancion(d):
-    return {'id': d.get('id'), 'titulo': d.get('titulo'), 'fuente': d.get('fuente'), 'notas': len(d.get('notas', [])),
-            'tarea': d.get('tarea'), 'creado': d.get('creado'), 'aproximada': d.get('aproximada', False)}
 
 # ---------- 映画館 Cine: videos con subtítulos japoneses analizados por la IA ----------
 _lock_cine = threading.Lock()
@@ -331,7 +301,7 @@ def preguntar_ia(mensajes, quiere_json=False, temperatura=0.7, max_tokens=900):
 
 
 class Manejador(BaseHTTPRequestHandler):
-    server_version = 'Sando/1.0'
+    server_version = 'sando-cine/1.0'
 
     def log_message(self, fmt, *args):  # silencioso
         pass
@@ -365,39 +335,6 @@ class Manejador(BaseHTTPRequestHandler):
             if PARTIDA.exists():
                 return self._responder(200, PARTIDA.read_bytes())
             return self._responder(200, {})
-        if ruta == '/api/canciones':
-            lista = []
-            for f in sorted(carpeta('canciones').glob('*.json'), key=lambda x: x.stat().st_mtime, reverse=True):
-                try:
-                    lista.append(resumen_cancion(json.loads(f.read_text(encoding='utf-8'))))
-                except Exception:
-                    pass
-            return self._responder(200, lista)
-        if ruta == '/api/partitura':
-            q = dict(x.split('=', 1) for x in (self.path.split('?', 1)[1:] or [''])[0].split('&') if '=' in x)
-            if not id_valido(q.get('id')):
-                return self._responder(400, {'error': 'id inválido'})
-            ancho = max(800, min(4000, int(q.get('ancho', '2200') or 2200) // 100 * 100))
-            fuente = carpeta('canciones') / f"{q['id']}.json"
-            if not fuente.exists():
-                return self._responder(404, {'error': 'no existe'})
-            cache = carpeta('partituras') / f"{q['id']}-{ancho}.json"
-            if not cache.exists() or cache.stat().st_mtime < fuente.stat().st_mtime:
-                try:
-                    subprocess.run([str(VENV_PY), '-I', str(RAIZ / 'herramientas' / 'partitura.py'), str(fuente), str(cache), str(ancho)],
-                                   stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                   creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0), timeout=180, check=True)
-                except Exception as e:
-                    return self._responder(500, {'error': f'no pude grabar la partitura: {e}'})
-            return self._responder(200, cache.read_bytes())
-        if ruta in ('/api/cancion', '/api/trabajo'):
-            q = dict(x.split('=', 1) for x in (self.path.split('?', 1)[1:] or [''])[0].split('&') if '=' in x)
-            if not id_valido(q.get('id')):
-                return self._responder(400, {'error': 'id inválido'})
-            f = carpeta('canciones' if ruta == '/api/cancion' else 'trabajos') / f"{q['id']}.json"
-            if not f.exists():
-                return self._responder(404, {'error': 'no existe'})
-            return self._responder(200, f.read_bytes())
         if ruta == '/api/cine':
             lista = []
             for f in sorted(carpeta('cine').glob('*.json'), key=lambda x: x.stat().st_mtime, reverse=True):
@@ -453,66 +390,6 @@ class Manejador(BaseHTTPRequestHandler):
                 tmp.write_text(json.dumps(datos, ensure_ascii=False, indent=1), encoding='utf-8')
                 tmp.replace(PARTIDA)
             return self._responder(200, {'ok': True})
-        if ruta == '/api/partitura':
-            # cualquier canción (también las clásicas del juego): se cachea por contenido
-            import hashlib
-            cancion = {k: datos.get(k) for k in ('titulo', 'bpm', 'compas', 'compas_txt', 'paso', 'notas', 'aproximada')}
-            if not isinstance(cancion['notas'], list) or not cancion['notas']:
-                return self._responder(400, {'error': 'faltan notas'})
-            ancho = max(800, min(4000, int(datos.get('ancho') or 2200) // 100 * 100))
-            clave = hashlib.sha1(json.dumps(cancion, sort_keys=True).encode()).hexdigest()[:16]
-            cache = carpeta('partituras') / f'{clave}-{ancho}.json'
-            with _lock_partida:
-                candado = _locks_partitura.setdefault(f'{clave}-{ancho}', threading.Lock())
-            with candado:
-                if not cache.exists():
-                    fuente = carpeta('partituras') / f'{clave}.cancion.json'
-                    fuente.write_text(json.dumps(cancion, ensure_ascii=False), encoding='utf-8')
-                    try:
-                        subprocess.run([str(VENV_PY), '-I', str(RAIZ / 'herramientas' / 'partitura.py'), str(fuente), str(cache), str(ancho)],
-                                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                       creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0), timeout=180, check=True)
-                    except Exception as e:
-                        return self._responder(500, {'error': f'no pude grabar la partitura: {e}'})
-            return self._responder(200, cache.read_bytes())
-        if ruta == '/api/importar':
-            if not VENV_PY.exists():
-                return self._responder(500, {'error': 'Falta el entorno L:\\Sando\\venv'})
-            job = uuid.uuid4().hex[:12]
-            url = (datos.get('url') or '').strip()
-            archivo = None
-            if url:
-                if not re.match(r'https?://', url):
-                    return self._responder(400, {'error': 'link inválido'})
-            else:
-                ext = Path(datos.get('nombre') or '').suffix.lower()
-                if ext not in EXT_OK or not datos.get('datos'):
-                    return self._responder(400, {'error': f'formato no soportado: {ext or "?"}'})
-                archivo = carpeta('subidas') / f'{job}{ext}'
-                archivo.write_bytes(base64.b64decode(datos['datos']))
-            (carpeta('trabajos') / f'{job}.json').write_text(json.dumps({'estado': 'trabajando', 'pct': 1, 'mensaje': 'En cola…'}), encoding='utf-8')
-            threading.Thread(target=importar_en_fondo, args=(job, url or None, archivo, datos.get('titulo', ''), datos.get('nombre', '')), daemon=True).start()
-            return self._responder(200, {'id': job})
-        if ruta == '/api/cancion':
-            if not id_valido(datos.get('id')):
-                return self._responder(400, {'error': 'id inválido'})
-            f = carpeta('canciones') / f"{datos['id']}.json"
-            if not f.exists():
-                return self._responder(404, {'error': 'no existe'})
-            actual = json.loads(f.read_text(encoding='utf-8'))
-            for k in ('titulo', 'notas', 'tarea', 'bpm', 'compas'):
-                if k in datos:
-                    actual[k] = datos[k]
-            f.write_text(json.dumps(actual, ensure_ascii=False), encoding='utf-8')
-            return self._responder(200, {'ok': True})
-        if ruta == '/api/cancion_borrar':
-            if not id_valido(datos.get('id')):
-                return self._responder(400, {'error': 'id inválido'})
-            f = carpeta('canciones') / f"{datos['id']}.json"
-            if f.exists():
-                papelera = carpeta('papelera')
-                shutil.move(str(f), str(papelera / f.name))
-            return self._responder(200, {'ok': True})
         if ruta == '/api/cine/importar':
             url = (datos.get('url') or '').strip()
             video = id_youtube(url)
@@ -539,7 +416,7 @@ class Manejador(BaseHTTPRequestHandler):
                 threading.Thread(target=analizar_cine, args=(vid,), daemon=True).start()
                 return self._responder(200, {'id': vid})
             if not VENV_PY.exists():
-                return self._responder(500, {'error': 'Falta el entorno L:\\Sando\\venv (con yt-dlp). Podés subir un .srt/.vtt.'})
+                return self._responder(500, {'error': 'Falta el entorno venv (con yt-dlp). Podés subir un .srt/.vtt.'})
             base.update(estado='bajando', mensaje='Buscando los subtítulos japoneses…')
             with _lock_cine:
                 escribir_cine(vid, base)
@@ -601,7 +478,7 @@ def main():
     if '--no-abrir' not in args:
         threading.Timer(0.6, lambda: webbrowser.open(url)).start()
     if srv:
-        avisar(f'三道 Sandō en {url}')
+        avisar(f'映画館 Cine en {url}')
         srv.serve_forever()
         srv.server_close()
 
