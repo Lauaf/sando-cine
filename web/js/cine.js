@@ -157,9 +157,9 @@ function hubCine(c, ctx) {
   const mazo = P.jp.mazo || [];
   const boletera = el('div.boletera',
     el('button.btn.prim', { onclick: () => importar(ctx) }, '＋ Nueva función'),
-    el('button.btn', { onclick: () => mazo.length ? ctx.ir('⭐ Mi mazo del cine', verMazo) : toast('Tocá palabras de los subtítulos y guardalas con ☆') },
-      `⭐ Mi mazo (${mazo.length})`),
-    el('button.btn', { disabled: !mazo.length, onclick: () => ctx.ir('⭐ Repaso del cine', (cc, cx) => sesionVocab(cc, cx, mazo)) }, '▶ Repasar'));
+    el('button.btn', { onclick: () => mazo.length ? ctx.ir('★ Mi mazo del cine', verMazo) : toast('Tocá palabras de los subtítulos y guardalas con ☆') },
+      `★ Mi mazo (${mazo.length})`),
+    el('button.btn', { disabled: !mazo.length, onclick: () => ctx.ir('★ Repaso del cine', (cc, cx) => sesionVocab(cc, cx, mazo)) }, '▶ Repasar'));
   s.pantalla.append(grilla);
   s.raiz.append(titulo, salir, boletera);
 
@@ -167,7 +167,7 @@ function hubCine(c, ctx) {
     grilla.replaceChildren();
     if (!lista.length) {
       grilla.append(el('div.cartelera-vacia',
-        el('div.mediano', '🎬 La sala está vacía'),
+        el('div.mediano', 'La sala está vacía'),
         el('div', 'Pegá el link de un video de YouTube en japonés (con subtítulos japoneses, aunque sean automáticos).'),
         el('div.suave', 'La IA separa cada línea en palabras, con lectura y significado según el contexto. Vos mirás, tocás lo que no entendés y lo guardás.'),
         el('button.btn.prim', { onclick: () => importar(ctx) }, '＋ Nueva función')));
@@ -181,10 +181,10 @@ function hubCine(c, ctx) {
         onclick: () => listo ? ctx.ir(v.titulo, (cc, cx) => funcion(cc, cx, v.id), { sub: v.canal }) : toast(v.mensaje || 'Todavía se está preparando…'),
         title: v.titulo,
       },
-      el('div.poster-img', img ? { style: { backgroundImage: `url(${img})` } } : {}, img ? null : '🎞'),
+      el('div.poster-img', img ? { style: { backgroundImage: `url(${img})` } } : {}, img ? null : '映'),
       el('div.poster-tit', v.titulo),
       el('div.poster-info',
-        v.estado === 'error' ? el('span.no', '⚠ ' + (v.mensaje || 'error'))
+        v.estado === 'error' ? el('span.no', v.mensaje || 'error')
           : !listo ? el('span.escribiendo-ia', v.mensaje || 'preparando')
             : [el('span', `${v.lineas} líneas`), v.analizadas < v.lineas ? el('span.suave', ` · IA ${Math.round(v.analizadas / v.lineas * 100)}%`) : null]),
       el('div.poster-barra', el('i', { style: { width: (listo ? pct : 0) + '%' } })),
@@ -220,20 +220,20 @@ function importar(ctx) {
       try {
         await api('/api/cine/importar', { url: url.value.trim(), ...extra });
         sfx.aceptar();
-        toast('🎬 Función agregada: en un ratito está lista');
+        toast('Función agregada: en un ratito está lista');
         cx.volver();
-      } catch (e) { estado.textContent = '⚠ ' + e.message; sfx.mal(); }
+      } catch (e) { estado.textContent = e.message; sfx.mal(); }
     };
     archivo.addEventListener('change', async () => {
       const f = archivo.files[0];
       if (f) enviar({ texto: await f.text(), nombre: f.name });
     });
     c.append(el('div.panel', { style: { width: 'min(100%, calc(var(--px) * 180))', display: 'flex', flexDirection: 'column', gap: '12px', textAlign: 'left' } },
-      el('div', '🎟 Link del video de YouTube'),
+      el('div', 'Link del video de YouTube'),
       url,
       el('div.suave', 'Buscá videos en japonés que tengan subtítulos (CC) en japonés: vlogs, anime, Nihongo con Teppei, ドラマ… Si también tiene subtítulos en castellano o inglés, se usan para la traducción.'),
       el('div.fila', el('button.btn.prim', { onclick: () => enviar() }, '▶ Importar'),
-        el('button.btn', { onclick: () => archivo.click(), title: 'Si el video no trae subtítulos, subí un .srt/.vtt (con el link de arriba para ver el video)' }, '📄 Subir .srt / .vtt')),
+        el('button.btn', { onclick: () => archivo.click(), title: 'Si el video no trae subtítulos, subí un .srt/.vtt (con el link de arriba para ver el video)' }, 'Subir .srt / .vtt')),
       archivo, estado));
     setTimeout(() => url.focus(), 30);
   });
@@ -283,15 +283,15 @@ function guardarPalabra(tok, linea, video) {
 function verMazo(c, ctx) {
   const mazo = P.jp.mazo || [];
   c.append(el('div.fila',
-    el('button.btn.prim', { onclick: () => ctx.ir('⭐ Repaso del cine', (cc, cx) => sesionVocab(cc, cx, mazo)) }, `▶ Repasar (${mazo.length})`),
+    el('button.btn.prim', { onclick: () => ctx.ir('★ Repaso del cine', (cc, cx) => sesionVocab(cc, cx, mazo)) }, `▶ Repasar (${mazo.length})`),
     el('span.suave', 'Cada palabra guarda la escena donde la viste.')));
   for (const m of [...mazo].reverse()) {
     const fila = el('div.panel.fila',
       el('div', { style: { flex: 1, minWidth: 0 } },
         el('div', el('b', { style: { color: 'var(--sakura2)', fontSize: '1.2em' } }, m.p), ` 【${m.r}】 `, el('span', m.s), m.b ? el('span.suave', ` · dicc. ${m.b}`) : null),
         el('div.suave', `「${m.ej}」`), m.es ? el('div.suave', { style: { fontSize: '.7em' } }, m.es) : null),
-      el('button.btn.chico', { onclick: () => hablar(m.r) }, '🔊'),
-      m.vid ? el('button.btn.chico', { title: 'Ver la escena', onclick: () => ctx.ir('🎬 Escena', (cc, cx) => funcion(cc, cx, m.vid, m.a)) }, '🎬') : null,
+      el('button.btn.chico', { onclick: () => hablar(m.r) }, 'Oír'),
+      m.vid ? el('button.btn.chico', { title: 'Ver la escena', onclick: () => ctx.ir('Escena', (cc, cx) => funcion(cc, cx, m.vid, m.a)) }, 'Escena') : null,
       el('button.btn.chico', { title: 'Sacar del mazo', onclick: () => {
         P.jp.mazo = P.jp.mazo.filter(x => x.p !== m.p); guardar(); fila.remove();
       } }, '✕'));
@@ -323,10 +323,10 @@ function funcion(c, ctx, id, desde = null) {
   const btnTrad = el('button.btn.chico', { title: 'Mostrar la traducción (T)', onclick: () => alternar('trad') });
   const btnGuion = el('button.btn.chico', { title: 'Guion completo (G)', onclick: () => alternar('guion') });
   const controles = el('div.sala-controles',
-    el('button.btn.chico', { title: 'Línea anterior (←)', onclick: () => ir(actual - 1) }, '⏮'),
-    el('button.btn.chico', { title: 'Repetir línea (R)', onclick: () => ir(actual) }, '🔁'),
-    el('button.btn.chico', { title: 'Play / pausa (Espacio)', onclick: () => playPausa() }, '⏯'),
-    el('button.btn.chico', { title: 'Línea siguiente (→)', onclick: () => ir(actual + 1) }, '⏭'),
+    el('button.btn.chico', { title: 'Línea anterior (←)', onclick: () => ir(actual - 1) }, '◀'),
+    el('button.btn.chico', { title: 'Repetir línea (R)', onclick: () => ir(actual) }, '↻'),
+    el('button.btn.chico', { title: 'Play / pausa (Espacio)', onclick: () => playPausa() }, '▶ ❚❚'),
+    el('button.btn.chico', { title: 'Línea siguiente (→)', onclick: () => ir(actual + 1) }, '▶'),
     btnAuto, btnTrad, btnGuion,
     el('button.btn.chico', { title: 'Velocidad', onclick: e => {
       const vels = [1, 0.75, 0.5];
@@ -337,9 +337,9 @@ function funcion(c, ctx, id, desde = null) {
     el('button.btn.chico', { style: { marginLeft: 'auto' }, onclick: () => ctx.volver() }, '◀ Cartelera'));
   s.raiz.append(subt, controles, guion);
   const pintarBotones = () => {
-    btnAuto.textContent = op.autopausa ? '⏸ auto: sí' : '⏸ auto: no';
-    btnTrad.textContent = op.trad ? '💬 trad: sí' : '💬 trad: no';
-    btnGuion.textContent = '📜 guion';
+    btnAuto.textContent = op.autopausa ? 'Pausa auto: sí' : 'Pausa auto: no';
+    btnTrad.textContent = op.trad ? 'Traducción: sí' : 'Traducción: no';
+    btnGuion.textContent = 'Guion';
     btnGuion.classList.toggle('prim', op.guion);
     guion.classList.toggle('oculto', !op.guion);
   };
@@ -355,7 +355,7 @@ function funcion(c, ctx, id, desde = null) {
     const trad = el('div.subtitulo-trad' + (op.trad ? '' : '.tapada'), { title: 'Clic para ver la traducción', onclick: e => { e.stopPropagation(); e.currentTarget.classList.remove('tapada'); } },
       ln.es || (ln.toks ? '' : IA.disponible ? 'traduciendo…' : '(sin traducción: prendé la IA)'));
     subt.append(el('div.subtitulo-jp', r.nodo,
-      el('button.btn.chico.subtitulo-voz', { title: 'Escuchar la línea (voz)', onclick: e => { e.stopPropagation(); hablar(ln.toks ? ln.toks.map(t => t.r).join('') : ln.t, 'ja', 0.85); } }, '🔊')),
+      el('button.btn.chico.subtitulo-voz', { title: 'Escuchar la línea (voz)', onclick: e => { e.stopPropagation(); hablar(ln.toks ? ln.toks.map(t => t.r).join('') : ln.t, 'ja', 0.85); } }, 'Oír')),
     ...[r.romajiNodo, trad, ln.toks ? null : el('div.subtitulo-aviso', IA.disponible ? 'la IA está analizando esta línea…' : 'diccionario básico (sin IA)')].filter(Boolean));
   }
   function pintarGuion() {
@@ -433,7 +433,7 @@ function funcion(c, ctx, id, desde = null) {
       if (faltan && IA.disponible && vivo) timer = setTimeout(traer, 3500);
       return primera;
     } catch (e) {
-      subt.replaceChildren(el('div.no', '⚠ ' + e.message));
+      subt.replaceChildren(el('div.no', e.message));
       return false;
     }
   };
@@ -462,10 +462,10 @@ function funcion(c, ctx, id, desde = null) {
           },
         });
       } catch (e) {
-        s.pantalla.append(el('div.cartelera-vacia', el('div', '📡 ' + e.message), el('div.suave', 'Igual podés leer los subtítulos con ←/→ y escucharlos con la voz.')));
+        s.pantalla.append(el('div.cartelera-vacia', el('div', e.message), el('div.suave', 'Igual podés leer los subtítulos con ←/→ y escucharlos con la voz.')));
       }
     } else {
-      s.pantalla.append(el('div.cartelera-vacia', el('div.mediano', '📄'), el('div', 'Subtítulos sin video'), el('div.suave', 'Pasá las líneas con ←/→; la voz te las lee.')));
+      s.pantalla.append(el('div.cartelera-vacia', el('div.mediano', '字幕'), el('div', 'Subtítulos sin video'), el('div.suave', 'Pasá las líneas con ←/→; la voz te las lee.')));
     }
     const inicio = desde != null ? Math.max(0, lineaEn(desde)) : Math.max(0, Math.min(v.visto || 0, v.lineas.length - 1));
     actual = -2; ponerLinea(inicio);

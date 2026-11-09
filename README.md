@@ -34,7 +34,7 @@ Sin ese entorno igual podés subir el archivo de subtítulos a mano.
 
 ## Partida y respaldo
 
-El progreso (nivel, racha, misiones del día, logros) se guarda solo en `datos/partida.json` (con una copia por día) y en el navegador. Desde **⚙ Opciones** podés exportar un respaldo y restaurarlo.
+El progreso (nivel, racha, misiones del día, logros) se guarda solo en `datos/partida.json` (con una copia por día) y en el navegador. Desde **Opciones** podés exportar un respaldo y restaurarlo.
 
 Como usa el mismo formato que [Sandō](https://github.com/Lauaf/Sando), podés exportar tu partida desde Sandō y restaurarla acá para seguir con el mismo progreso.
 
